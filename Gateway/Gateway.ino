@@ -1,7 +1,7 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <SoftwareSerial.h>
-#define untilID 2//0~n
+#define untilID 0//0~n
 #define Cycle 30//0~n
 
 //#define VAR_ID "6304e64050e064938a161e8f"
@@ -18,12 +18,12 @@ int checkID = 0;
 float Temp[3] = {0,};
 unsigned char Humi = 0;
 
-unsigned char checksum;
+//unsigned char checksum;
 unsigned char parsing_ID;
 int post_counter = 0;
 int request_counter = 0;
 int parsing_counter = 0;
-unsigned char request_buf[4] = {0xfe,0xfe,0x00,0xff}; 
+
 unsigned char parsing_buf[11] = {0,};
 
 const char* ssid = "U+Net5055";
@@ -46,7 +46,7 @@ void setup () {
 
 void loop() {
   ////https get////
-  #if 1
+  #if 0
   if(post_counter++>Cycle){
     post_counter = 0;
     if (WiFi.status() == WL_CONNECTED) {    // WiFi가 연결되어 있을 경우 HTTP 접속
@@ -76,7 +76,7 @@ void loop() {
   
   ////request////
   if(request_counter++>Cycle){
-    if(request_flag == 1){sendID--;}
+    if(request_flag == 1){sendID--;}// if gateway don't receive message, it will repeat request
     request_flag = 1;
     request_counter = 0;
     checkID=sendID;
@@ -85,7 +85,7 @@ void loop() {
   }
   ///////////////
 
-  
+ 
   ////parsing////
   if (HC12.available() > 0) 
   {
@@ -94,34 +94,35 @@ void loop() {
     if(parsing_counter>=11)
     {
       parsing_counter=0;
-
-      if((parsing_buf[0]==0xff) && (parsing_buf[1]==0xfe))
-      {
-
-        checksum = parsing_buf[2];
-        for(int i=4;i<11;i++){checksum += parsing_buf[i];}
-        if(parsing_buf[3] == (checksum^0xff))
-        {
-          Temp[0] = ((float)(parsing_buf[4]*256+parsing_buf[5])/100);
-          Temp[1] = ((float)(parsing_buf[6]*256+parsing_buf[7])/100);
-          Temp[2] = ((float)(parsing_buf[8]*256+parsing_buf[9])/100);
-          Humi = parsing_buf[10];
+      request_flag=parsingMSG(parsing_buf);
+      // if((parsing_buf[0]==0xff) && (parsing_buf[1]==0xfe))
+      // {
+      //   checksum = parsing_buf[2];
+      //   for(int i=4;i<11;i++){checksum += parsing_buf[i];}
+      //   if(parsing_buf[3] == (checksum^0xff))
+      //   {
+      //     for(int i=0;i<3;i++) {Temp[i] = ((float)(parsing_buf[(i*2)+4]*256+parsing_buf[(i*2)+5])/100);}
+      //     Humi = parsing_buf[10];
           
-          Serial.print("ID"+String(checkID)+": top(");      // 읽어서 HC-12 모듈로 전달합니다
-          Serial.print(Temp[0]);      // 읽어서 HC-12 모듈로 전달합니다
-          Serial.print(") mid(");      // 읽어서 HC-12 모듈로 전달합니다
-          Serial.print(Temp[1]);      // 읽어서 HC-12 모듈로 전달합니다
-          Serial.print(") bot(");      // 읽어서 HC-12 모듈로 전달합니다
-          Serial.print(Temp[2]);      // 읽어서 HC-12 모듈로 전달합니다
-          Serial.print(") humi(");      // 읽어서 HC-12 모듈로 전달합니다
-          Serial.print(Humi);      // 읽어서 HC-12 모듈로 전달합니다
-          Serial.println(")");      // 읽어서 HC-12 모듈로 전달합니다
-          if(checkID > untilID){checkID=0;}
-          request_flag = 0;
-          if(sendID > untilID){sendID=0;}
-        
-        }
-      }
+      //     test += "ID";
+      //     test += String(checkID);
+      //     test += ": top(";
+      //     test += Temp[0];
+      //     test += ") mid(";
+      //     test += Temp[1];
+      //     test += ") bot(";
+      //     test += Temp[2];
+      //     test += ") humi(";
+      //     test += Humi;
+      //     test +=")";
+
+      //     Serial.println(test);      // 읽어서 HC-12 모듈로 전달합니다
+
+      //     if(checkID > untilID){checkID=0;}
+      //     request_flag = 0;
+      //     if(sendID > untilID){sendID=0;}
+      //   }
+      // }
     }
   }
 
@@ -133,8 +134,48 @@ void loop() {
   digitalWrite(14, toggle);
 }
 
+int parsingMSG(unsigned char buf[])
+{
+  unsigned char checksum;
+  String test = "";
+  
+  if((buf[0]==0xff) && (buf[1]==0xfe))
+  {
+    checksum = buf[2];
+    for(int i=4;i<11;i++){checksum += buf[i];}
+    if(buf[3] == (checksum^0xff))
+    {
+      for(int i=0;i<3;i++) {Temp[i] = ((float)(buf[(i*2)+4]*256+buf[(i*2)+5])/100);}
+      Humi = buf[10];
+      //should divide
+      test += "ID";
+      test += String(checkID);
+      test += ": top(";
+      test += Temp[0];
+      test += ") mid(";
+      test += Temp[1];
+      test += ") bot(";
+      test += Temp[2];
+      test += ") humi(";
+      test += Humi;
+      test +=")";
+
+      Serial.println(test);      // 읽어서 HC-12 모듈로 전달합니다
+///////////////////////////////////
+      if(checkID > untilID){checkID=0;}
+      if(sendID > untilID){sendID=0;}
+      return 0;
+    }
+    return 1;
+  }
+  return 1;
+}
+
+
 void requestID(unsigned char i)
 {
+  unsigned char request_buf[4] = {0xfe,0xfe,0x00,0xff}; 
+
   request_buf[2] = i;
   request_buf[3] = request_buf[2]^0xff;
   
