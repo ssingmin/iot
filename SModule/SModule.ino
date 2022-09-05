@@ -1,9 +1,9 @@
 #include <OneWire.h>
 #include <SoftwareSerial.h>
 #define buf_size 11
-#define parsing_size 4
+#define parsing_size 5
 
-#define SModule_ID 2
+#define SModule_ID 0
 
 #define blink_led 13
 
@@ -20,7 +20,7 @@ int soilMoistureValue = 0;
 int soilmoisturepercent=0;
 
 //////////////////////////////////////////////////////////////////////////////
-
+//데이터 배열을 일률적으로 해야할듯 그래서 다른데에서 오는 데이터도 받고 버릴 수 있게 지금 버퍼가 차이가 나면서 꼬이는 문제가 발생하네 ㅅㅄㅄㅄㅂ
 
 /////////////////////////////////////////protocol/////////////////////////////////////////
 //head(0):0xff, head(1):0xfe, id(2):0x00~0a, checksum(3):0xff, checksum=!(id(2)+datasum(4~10))
@@ -28,6 +28,7 @@ int soilmoisturepercent=0;
 unsigned char parsing_ID;
 int parsing_counter = 0;
 unsigned char checksum = 0;
+unsigned char rev_checksum = 0;
 unsigned char RF_buf[buf_size] = {0xff,0xfe,SModule_ID,checksum,4,5,6,7,8,9,0};
 unsigned char parsing_buf[parsing_size] = {0,};
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -54,31 +55,19 @@ void setup(){
 } 
 
 
- 
 void loop(){
+  
   for(int i=0;i<3;i++)
   {
     temperature[i] = getTemp(ds[i]);                 //온도 측정 후 변수에 저장
-    //Serial.print(String(i)+" ");
-    //Serial.println(temperature[i]);
-    tmp = (int)(temperature[i]*100);
+    RF_buf[(i*2)+4] = (((int)(temperature[i]*100))>>8);
+    RF_buf[(i*2)+5] = ((int)(temperature[i]*100));
+    //tmp = (int)(temperature[i]*100);
     //Serial.println(tmp);
   }
-  
-  RF_buf[4] = (((int)(temperature[0]*100))>>8);
-  RF_buf[5] = ((int)(temperature[0]*100));
-  RF_buf[6] = (((int)(temperature[1]*100))>>8);
-  RF_buf[7] = ((int)(temperature[1]*100));
-  RF_buf[8] = (((int)(temperature[2]*100))>>8);
-  RF_buf[9] = ((int)(temperature[2]*100));
     
   soilMoistureValue = analogRead(A3);  //put Sensor insert into soil
-  //Serial.print("soilMoistureValue: ");
-  //Serial.println(soilMoistureValue);
   soilmoisturepercent = map(soilMoistureValue, AirValue, WaterValue, 0, 100);
-  //Serial.print("soilmoisturepercent: ");
-  //Serial.println(soilmoisturepercent);
-
   RF_buf[10]=soilmoisturepercent;
   
   ///checksum///
@@ -94,15 +83,18 @@ void loop(){
   {
     parsing_buf[parsing_counter++] = HC12.read();
 
-    if(parsing_counter>=4)
+    if(parsing_counter>=parsing_size)
     {
+      for(int i=0;i<5;i++){Serial.print(String(parsing_buf[i])+" ");}
+      Serial.println(" ");
       parsing_counter = 0;
       
       if((parsing_buf[0]==0xfe) && (parsing_buf[1]==0xfe))
       {
         parsing_ID = parsing_buf[2];
-                
-        if((parsing_ID == SModule_ID) && (parsing_ID == (parsing_buf[3]^0xff)))
+        rev_checksum = parsing_buf[2]+parsing_buf[4];
+
+        if((parsing_ID == SModule_ID) && (parsing_buf[3] == (rev_checksum^0xff)))
         {
           for(int i=0;i<11;i++){Serial.print(String(RF_buf[i])+" ");}
           Serial.println(" ");
@@ -126,12 +118,12 @@ void loop(){
     digitalWrite(blink_led, toggle);   // 상태확인
     if((resetflag++)>10){asm volatile (" jmp 0");}//임시방법
   }
-
 }
 
 
 
 ////////////////////////////////////////////////////////////////
+
 
 
 float getTemp(OneWire ds){      //온도 측정 후 반환하는 함수
