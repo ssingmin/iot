@@ -2,7 +2,7 @@
 #include <SoftwareSerial.h>
 #define BUFFER_SIZE 11
 #define PARSING_SIZE 5
-#define SMODULE_ID 2
+#define SMODULE_ID 3
 #define LED_PORT 13
 
 SoftwareSerial HC12(2, 3); // HC-12 TX Pin, HC-12 RX Pin
@@ -28,6 +28,7 @@ int parsing_counter = 0;
 unsigned char checksum = 0;
 unsigned char rev_checksum = 0;
 unsigned char RF_buf[BUFFER_SIZE] = {0xff, 0xfe, SMODULE_ID, checksum, 4, 5, 6, 7, 8, 9, 0};
+unsigned char TMP_buf[10] = {0,};
 unsigned char parsing_buf[PARSING_SIZE] = {
     0,
 };
@@ -84,10 +85,32 @@ void loop()
 
     if (HC12.available() > 0)
     {
-        parsing_buf[parsing_counter++] = HC12.read();
+        
+        TMP_buf[parsing_counter++] = HC12.read();
 
         if (parsing_counter >= PARSING_SIZE)
         {
+            for (int i = 0; i < 10; i++)
+            {
+                Serial.print(String(TMP_buf[i]) + " ");
+            }
+            Serial.println(" ");
+
+            for(int i=0;i<4;i++)
+            {
+                if(TMP_buf[i]==0xfe && TMP_buf[i+1]==0xfe)
+                {
+                    for(int j=0;j<PARSING_SIZE;j++)
+                    {
+                        parsing_buf[j]=TMP_buf[j+i];
+                    }
+                    for(int k=0;k<10;k++){TMP_buf[k]=0;}//clear
+                    break;
+                }
+            }
+            
+            
+            
             for (int i = 0; i < 5; i++)
             {
                 Serial.print(String(parsing_buf[i]) + " ");
@@ -131,8 +154,10 @@ void loop()
         }
     }
     /////////////
-        if ((resetflag++) > 100)
+        if ((resetflag++) > 10)
         {
+            Serial.println("reset!!!");
+            delay(100);
             asm volatile(" jmp 0");
         } //임시방법
     #if 0
