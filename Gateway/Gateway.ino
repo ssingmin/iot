@@ -22,16 +22,13 @@ typedef struct _Smodule {
   float Temp[3];
 } Smodule;
 
-Smodule SM[9] = {
+Smodule SM[6] = {
 {"",1, 0,{0.0, 0.0, 0.0}},
 {"",2, 0,{0.0, 0.0, 0.0}}, 
 {"",3, 0,{0.0, 0.0, 0.0}}, 
 {"",4, 0,{0.0, 0.0, 0.0}}, 
 {"",5, 0,{0.0, 0.0, 0.0}}, 
-{"",6, 0,{0.0, 0.0, 0.0}}, 
-{"",7, 0,{0.0, 0.0, 0.0}}, 
-{"",8, 0,{0.0, 0.0, 0.0}}, 
-{"",9, 0,{0.0, 0.0, 0.0}}, 
+{"",6, 0,{0.0, 0.0, 0.0}},  
 };
 SimpleTimer timer1;
 SimpleTimer timer2;
@@ -232,9 +229,6 @@ int parsingMSG(unsigned char buf[])
   return 0;
 }
 
-
-
-//void Jsontostring(char *s1, float *Temp, unsigned char Humi)
 int Jsontostring(Smodule module)
 {
   DynamicJsonDocument doc(1024);
@@ -257,20 +251,11 @@ int Jsontostring(Smodule module)
     root["sensor_id"] = "sensor_e";break;
   case 6 :
     root["sensor_id"] = "sensor_f";break;
-  case 7 :
-    root["sensor_id"] = "sensor_g";break;
-  case 8 :
-    root["sensor_id"] = "sensor_h";break;
-  case 9 :
-    root["sensor_id"] = "sensor_i";break;
  }
   root["top"] = module.Temp[0];
   root["middle"] = module.Temp[1];
   root["bottom"] = module.Temp[2];
   root["humidity"] = module.Humi;
   serializeJson(doc, SMstr[module.Smid-1], 1024);
-  // serializeJson(doc, module.stringout, 1024);
-  //     String str1(module.stringout);
-  //   Serial.println(str1);
   return 1;
 }
