@@ -62,6 +62,8 @@ void setup()
           break;
           }
         }
+
+        ScanData();
 }
 
 void loop()
