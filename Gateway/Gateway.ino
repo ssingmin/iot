@@ -6,7 +6,7 @@
 
 #define untilID 6//1~n
 #define Cycle 10000//0~n
-#define UPDATECYCLE 30000//1당 1ms초
+#define UPDATECYCLE 300000//1당 1ms초
 #define REQUESTCYCLE 300//1당 1ms초
 
 char SMstr[untilID][1024];
@@ -63,7 +63,7 @@ void updateDB(void) {//interval 3s
   for(int i=0;i<untilID;i++){
    if (WiFi.status() == WL_CONNECTED) {    // WiFi가 연결되어 있을 경우 HTTP 접속
      HTTPClient http;  // HTTPClient 클래스의 오브섹트 선언
-     String server = "http://15.165.203.24:8992/insert_sensor_data";
+     String server = "http://3.39.237.15:8992/insert_sensor_data";
   
      http.begin(wifiClient, server);//추가
      http.addHeader("Content-Type", "application/json");
@@ -72,11 +72,11 @@ void updateDB(void) {//interval 3s
       String str1(SMstr[i]);
       Serial.println(str1);
   
-      int httpCode = http.POST(SMstr[i]);// 여기가 진짜
+      int httpCode = http.POST(SMstr[i]);
   
       // String str1(SM[i].stringout);
       // Serial.println(str1);
-      // int httpCode = http.POST(SM[i].stringout);// 여기가 진짜
+      // int httpCode = http.POST(SM[i].stringout);
   
       if (httpCode > 0) // 정상적으로 요청이 된 경우
       {
@@ -114,6 +114,9 @@ void setup () {
 
 void loop() {
 
+  for(int i=0;i<3;i++){tmp_temp[i] = 0;} //init
+  tmp_humi = 0;//init
+  
   timer1.run(); //updateDB
   timer2.run(); //request_data
   
@@ -148,8 +151,7 @@ void loop() {
      //Serial.println(SM[receiveData_flag].stringout);      // 읽어서 HC-12 모듈로 전달합니다
    }
   }
-  for(int i=0;i<3;i++){tmp_temp[i] = 0;} //init
-  tmp_humi = 0;//init
+
 
   if (post_counter++ > Cycle) {
     post_counter = 0;
