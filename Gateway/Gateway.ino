@@ -6,8 +6,14 @@
 
 #define untilID 6//1~n
 #define Cycle 10000//0~n
-#define UPDATECYCLE 300000//1당 1ms초
+#define UPDATECYCLE 30000//1당 1ms초
 #define REQUESTCYCLE 300//1당 1ms초
+#define MISSINGCYCLE 100//1당 1ms초
+
+#define MISSINGDELAY 30//1당 1ms초
+
+unsigned int pre_chg_updatecycle = 30;
+unsigned int chg_updatecycle = 30;
 
 char SMstr[untilID][1024];
 
@@ -32,6 +38,7 @@ Smodule SM[6] = {
 };
 SimpleTimer timer1;
 SimpleTimer timer2;
+SimpleTimer timer3;
 
 WiFiClient wifiClient;  //추가
 
@@ -39,6 +46,12 @@ SoftwareSerial HC12(D7, D6); // HC-12 TX Pin은 D2(RX용)에, HC-12 RX Pin을 D3
 
 int updatedone_flag = 0;
 int Jsontostring_flag = 0;
+
+int numcounter = 0;
+int timerID = 0;
+int missingdata = 0;
+int nextid = 0;
+int Pre_receiveData_flag = 255;
 int receiveData_flag = 0;
 int receiveData_buf[untilID+1] ={0,};
 //int request_flag = 257;
@@ -53,8 +66,11 @@ int parsing_counter = 0;
 
 unsigned char parsing_buf[11] = {0,};
 
-const char* ssid = "iotdemo";
-const char* password = "iotcuredemo";
+// const char* ssid = "iotdemo";
+// const char* password = "iotcuredemo";
+
+const char* ssid = "U+Net5055";
+const char* password = "95456565A#";
 
 int toggle = 0; //for indicator led
 
@@ -77,11 +93,48 @@ void updateDB(void) {//interval 3s
       // String str1(SM[i].stringout);
       // Serial.println(str1);
       // int httpCode = http.POST(SM[i].stringout);
-  
+
       if (httpCode > 0) // 정상적으로 요청이 된 경우
       {
         String payload = http.getString();   // 응답을 수신
         Serial.println(payload);            // 수신된 응답 내용을 시리얼 통신을 통해 출력
+
+        for(int i=0;i<4;i++)//scan digit
+        {
+          if(payload[i+24]>=0x30 && payload[i+24]<=0x39){
+            numcounter = i;
+          }
+        }
+        if(payload[8] == '2'){
+        switch (numcounter)
+          {
+          case 0://1
+            chg_updatecycle = (payload[24]-0x30);
+            break;
+
+          case 1://10
+            chg_updatecycle = (payload[25]-0x30);
+            chg_updatecycle += (payload[24]-0x30)*10;
+            break;
+
+          case 2://100
+            chg_updatecycle = (payload[26]-0x30);
+            chg_updatecycle = (payload[25]-0x30)*10;
+            chg_updatecycle = (payload[24]-0x30)*100;
+            break;
+
+          case 3:///1000
+            chg_updatecycle = (payload[27]-0x30);
+            chg_updatecycle = (payload[26]-0x30)*10;
+            chg_updatecycle = (payload[25]-0x30)*100;
+            chg_updatecycle = (payload[24]-0x30)*1000;
+            break;
+          }
+        Serial.println(chg_updatecycle);
+        }
+        
+
+        
       }
      delay(100);     
      for(int i=0;i<untilID+1;i++){receiveData_buf[i]=0;}//receive data buf clear
@@ -94,8 +147,17 @@ void updateDB(void) {//interval 3s
 void request_data()//interval 1s untilID까지 보냈으면 더이상 보내지 말기 
 {
   for(int i=1;i<=untilID;i++){
-    if(receiveData_buf[i] == 0){requestID(i);break;}
+    if(receiveData_buf[i] == 0){
+      requestID(i);
+      nextid = i;
+      break;
+      }
   }
+}
+
+void missingcheck()
+{
+  missingdata++;
 }
 
 void setup () {
@@ -108,29 +170,59 @@ void setup () {
     delay(1000);
     Serial.println("Connecting..");
   }
-  timer1.setInterval(UPDATECYCLE, updateDB); // 주기적으로 DB업데이트
-  timer2.setInterval(REQUESTCYCLE, request_data); // 주기적으로 DB업데이트
+  timerID = timer1.setInterval(UPDATECYCLE, updateDB); 
+  timer2.setInterval(REQUESTCYCLE, request_data);
+  timer2.setInterval(MISSINGCYCLE, missingcheck);
 }
 
 void loop() {
+  delay(1);
+  
+  if(pre_chg_updatecycle != chg_updatecycle)
+  {
+    Serial.print("chg_updatecycle pre_chg_updatecycle: ");
+    Serial.print(chg_updatecycle);
+    Serial.print("  ");
+    Serial.println(chg_updatecycle);
+    pre_chg_updatecycle = chg_updatecycle;
+    timer1.deleteTimer(timerID);
+    timerID = timer1.setInterval(chg_updatecycle*1000, updateDB); 
+  }
 
   for(int i=0;i<3;i++){tmp_temp[i] = 0;} //init
   tmp_humi = 0;//init
   
   timer1.run(); //updateDB
   timer2.run(); //request_data
+  timer3.run(); //request_data
   
+  if(Pre_receiveData_flag == receiveData_flag)
+  {
+    //missingdata++;
+    if(missingdata >MISSINGDELAY){
+      //if(nextid == 7){nextid = 0;}
+      receiveData_buf[nextid] = 1;
+
+      Serial.print("nextid: "); 
+      Serial.println(nextid); 
+
+      missingdata = 0;
+    }
+  }
+  else {missingdata = 0; }
+
+  // Pre_receiveData_flag = receiveData_flag;
+
   receiveData_flag = receiveData();
   receiveData_buf[receiveData_flag] = 1;
 
+  Pre_receiveData_flag = receiveData_flag;
+  
   if(receiveData_flag>0){
-    // checkID = receiveData_flag;
-    // Serial.println(checkID);
+  
     SM[receiveData_flag].Smid = receiveData_flag;
     SM[receiveData_flag].Humi = tmp_humi;
     for(int i=0;i<3;i++){SM[receiveData_flag].Temp[i] = tmp_temp[i];}
-    
-    //if(receiveData_flag){update_flag = 1;}
 
      if (Jsontostring(SM[receiveData_flag])) {
       String test = "";
