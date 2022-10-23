@@ -66,11 +66,8 @@ int parsing_counter = 0;
 
 unsigned char parsing_buf[11] = {0,};
 
-// const char* ssid = "iotdemo";
-// const char* password = "iotcuredemo";
-
-const char* ssid = "U+Net5055";
-const char* password = "95456565A#";
+ const char* ssid = "iotdemo";
+ const char* password = "iotcuredemo";
 
 int toggle = 0; //for indicator led
 
